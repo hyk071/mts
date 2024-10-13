@@ -160,12 +160,16 @@ if not df_db.empty:
         st.subheader('장비코드별 단속 건수 상위 10개')
         equipment_top10 = df_selected['장비코드'].value_counts().head(10)
         fig, ax = plt.subplots()
-        ax.bar(equipment_top10.index, equipment_top10.values, color='skyblue')
+        bars = ax.bar(equipment_top10.index, equipment_top10.values, color='skyblue')
         ax.set_xlabel('장비코드', fontproperties=font_prop)
         ax.set_ylabel('건수', fontproperties=font_prop)
         ax.set_title('장비코드별 단속 건수 (상위 10개)', fontproperties=font_prop)
         plt.xticks(fontproperties=font_prop)
         plt.yticks(fontproperties=font_prop)
+
+        # 그래프에 마우스를 올렸을 때 건수 표시
+        for bar in bars:
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height()}', ha='center', va='bottom', fontproperties=font_prop)
         st.pyplot(fig)
 
         # 단속 건수가 급증한 장비 경고 알림 (통계적 이상치 탐지)
@@ -189,40 +193,54 @@ if not df_db.empty:
                 st.write(f"장비코드 {code}에서 최근 단속 건수가 통계적 이상")
 
         # 위반 유형별 발생 빈도 시각화
-        st.subheader('위반 유형별 발생 빈도')
+        st.subheader('위반 유형별 단속건수')
         violation_counts = df_selected['위반유형'].value_counts()
         fig, ax = plt.subplots()
-        ax.bar(violation_counts.index, violation_counts.values, color='skyblue')
+        bars = ax.bar(violation_counts.index, violation_counts.values, color='skyblue')
         ax.set_xlabel('위반유형', fontproperties=font_prop)
         ax.set_ylabel('건수', fontproperties=font_prop)
-        ax.set_title('위반 유형별 건수', fontproperties=font_prop)
+        ax.set_title('위반 유형별 단속건수', fontproperties=font_prop)
         plt.xticks(fontproperties=font_prop)
         plt.yticks(fontproperties=font_prop)
+
+        # 그래프에 마우스를 올렸을 때 건수 표시
+        for bar in bars:
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height()}', ha='center', va='bottom', fontproperties=font_prop)
         st.pyplot(fig)
 
-        # 시간대별 위반 건수 시각화
+        # 시간대별 단속 건수 시각화
         df_selected['시간대'] = df_selected['위반일시'].dt.hour
         time_counts = df_selected['시간대'].value_counts().sort_index()
-        st.subheader('시간대별 위반 건수')
+        st.subheader('시간대별 단속건수')
         fig, ax = plt.subplots()
-        ax.plot(time_counts.index, time_counts.values, marker='o', color='skyblue')
+        line, = ax.plot(time_counts.index, time_counts.values, marker='o', color='skyblue')
         ax.set_xlabel('시간대', fontproperties=font_prop)
         ax.set_ylabel('건수', fontproperties=font_prop)
-        ax.set_title('시간대별 위반 건수', fontproperties=font_prop)
+        ax.set_title('시간대별 단속건수', fontproperties=font_prop)
+        ax.set_xticks(range(0, 24, 1))  # 가로축 간격 1시간 단위로 설정
+        ax.set_yticks(range(0, max(time_counts.values) + 10, 10))  # 세로축 간격 10 단위로 설정
         plt.xticks(fontproperties=font_prop)
         plt.yticks(fontproperties=font_prop)
+
+        # 그래프에 마우스를 올렸을 때 건수 표시
+        for i, txt in enumerate(time_counts.values):
+            ax.text(time_counts.index[i], time_counts.values[i], f'{txt}', ha='center', va='bottom', fontproperties=font_prop)
         st.pyplot(fig)
 
         # 차종별 위반 건수 시각화
-        st.subheader('차종별 위반 건수')
+        st.subheader('차종별 단속건수')
         car_type_counts = df_selected['차종'].value_counts()
         fig, ax = plt.subplots()
-        ax.bar(car_type_counts.index, car_type_counts.values, color='skyblue')
+        bars = ax.bar(car_type_counts.index, car_type_counts.values, color='skyblue')
         ax.set_xlabel('차종', fontproperties=font_prop)
         ax.set_ylabel('건수', fontproperties=font_prop)
-        ax.set_title('차종별 건수', fontproperties=font_prop)
+        ax.set_title('차종별 단속건수', fontproperties=font_prop)
         plt.xticks(fontproperties=font_prop)
         plt.yticks(fontproperties=font_prop)
+
+        # 그래프에 마우스를 올렸을 때 건수 표시
+        for bar in bars:
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height()}', ha='center', va='bottom', fontproperties=font_prop)
         st.pyplot(fig)
         
 # 데이터베이스 초기화 버튼 추가

@@ -123,32 +123,38 @@ if not df_db.empty:
         end_date = df_selected['위반일시'].max().date()
         st.subheader(f"분석 기간: {start_date} ~ {end_date}")
 
-        # 단속 건수 표로 표시
+        # 단속 건수 및 위반유형별 건수 통합 표로 표시
         st.subheader('단속 건수 요약')
-        total_count = df_selected['일련번호'].nunique()
-        st.write(f'단속 건수 총합계: {total_count}건')
-        summary = df_selected.groupby(['위반유형', '장소구분', '처리상태']).size().reset_index(name='건수')
-        st.write(summary)
-        st.write("카테고리 별 단속 건수 부분 합계:")
-        part_sum = df_selected.groupby(['위반유형'])['일련번호'].nunique().reset_index(name='건수')
-        st.write(part_sum)
+        daily_counts = df_selected.groupby(df_selected['위반일시'].dt.date)['일련번호'].nunique().reset_index(name='단속 건수')
+        daily_counts.columns = ['날짜', '단속 건수']
 
-        # 장비코드 검색 및 단속 건수 표시 (카테고리별 단속 건수 부분 합계 아래에 배치)
+        violation_counts = df_selected.groupby([df_selected['위반일시'].dt.date, '위반유형'])['일련번호'].nunique().unstack(fill_value=0)
+        violation_counts.index.name = '날짜'
+
+        combined_df = pd.concat([daily_counts.set_index('날짜').T, violation_counts.T], sort=False)
+        combined_df = combined_df.loc[:, (combined_df != 0).any(axis=0)]  # 모든 건수가 0인 열 제거
+        total_violations = df_selected['일련번호'].nunique()
+        st.write(f'총 단속건수: {total_violations} 건')
+        st.write(combined_df)
+
+        # 장비코드 검색 및 단속 건수 표시 (통합 표로 변경)
         st.header("장비코드 별 단속건수")
-        equipment_code_input = st.text_input("장비코드를 입력하세요")
+        equipment_code_input = st.text_input("장비코드를 입력하세요", value="", key='equipment_code_input')
         if equipment_code_input:
             specific_equipment_data = df_selected[df_selected['장비코드'] == equipment_code_input]
             if not specific_equipment_data.empty:
-                st.write(f"장비코드 {equipment_code_input}의 단속 장소 : {specific_equipment_data['위반장소'].iloc[0]}")
-                total_daily_count = specific_equipment_data['일련번호'].nunique()  # 총합 계산
-                st.write(f"장비코드 {equipment_code_input}의 일별 단속 건수 총합 : {total_daily_count}건")
+                st.write(f"장비코드 {equipment_code_input}의 단속 장소: {specific_equipment_data['위반장소'].iloc[0]}")
                 daily_counts = specific_equipment_data.groupby(specific_equipment_data['위반일시'].dt.date)['일련번호'].nunique().reset_index(name='단속 건수')
                 daily_counts.columns = ['날짜', '단속 건수']
-                daily_counts = daily_counts.set_index('날짜').T  # 가로 형태로 변환
-                st.write(daily_counts)
-                st.write(f"장비코드 {equipment_code_input}의 위반유형별 단속 건수:")
-                violation_counts = specific_equipment_data.groupby('위반유형')['일련번호'].nunique().reset_index(name='단속 건수')
-                st.write(violation_counts)
+
+                violation_counts = specific_equipment_data.groupby([specific_equipment_data['위반일시'].dt.date, '위반유형'])['일련번호'].nunique().unstack(fill_value=0)
+                violation_counts.index.name = '날짜'
+
+                combined_df_specific = pd.concat([daily_counts.set_index('날짜').T, violation_counts.T], sort=False)
+                combined_df_specific = combined_df_specific.loc[:, (combined_df_specific != 0).any(axis=0)]  # 모든 건수가 0인 열 제거
+                total_specific_violations = specific_equipment_data['일련번호'].nunique()
+                st.write(f'총 단속건수: {total_specific_violations} 건')
+                st.write(combined_df_specific)
 
         # 장비코드별 단속 건수 상위 10개 시각화
         st.subheader('장비코드별 단속 건수 상위 10개')
@@ -164,11 +170,11 @@ if not df_db.empty:
 
         # 단속 건수가 급증한 장비 경고 알림 (통계적 이상치 탐지)
         st.subheader('단속 건수 급증 경고')
-        equipment_counts = df_db.groupby(['장비코드', df_db['위반일시'].dt.date]).size().unstack(fill_value=0)
+        equipment_counts = df_db.groupby(['장비코드', df_db['위반일시'].dt.date])['일련번호'].nunique().unstack(fill_value=0)
         rolling_mean = equipment_counts.rolling(window=7, axis=1).mean()
         rolling_std = equipment_counts.rolling(window=7, axis=1).std()
         threshold = rolling_mean + (2 * rolling_std)  # 이동 평균 + 2표준편차를 이상치 기준으로 설정
-        recent_counts = df_selected.groupby('장비코드').size()
+        recent_counts = df_selected.groupby('장비코드')['일련번호'].nunique()
 
         alerts = []
         for code in recent_counts.index:
@@ -226,6 +232,8 @@ def reset_database():
     cursor.execute('DELETE FROM violations')
     conn.commit()
     conn.close()
+    if 'equipment_code_input' in st.session_state:
+        del st.session_state['equipment_code_input']
 
 if st.sidebar.button("전체 DB 삭제"):
     reset_database()

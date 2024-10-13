@@ -45,7 +45,7 @@ def create_database():
 # 데이터베이스에 데이터 저장
 def save_to_database(df):
     conn = sqlite3.connect('vehicle_violations.db')
-    df.to_sql('violations', conn, if_exists='append', index=False)
+    df.to_sql('violations', conn, if_exists='append', index=False, chunksize=1000)
     conn.close()
 
 # Streamlit 앱
@@ -57,17 +57,23 @@ create_database()
 # 데이터 업로드
 uploaded_file = st.file_uploader("엑셀 파일을 업로드하세요", type=["xlsx"], label_visibility="collapsed")
 if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
-    analysis_columns = [
-        "일련번호", "위반유형", "위반일시", "제한속도", "실제주행속도", "실제초과속도",
-        "고지주행속도", "고지초과속도", "처리상태", "위반차로", "차종", "장소구분",
-        "주민구분", "차명", "위반장소"
-    ]
-    df_analysis = df[analysis_columns]
-
-    # 개인정보 제거 후 데이터베이스에 저장
-    save_to_database(df_analysis)
-    st.success("파일이 데이터베이스에 저장되었습니다.")
+    try:
+        df = pd.read_excel(uploaded_file)
+        # 파일 형식 검증
+        required_columns = [
+            "일련번호", "위반유형", "위반일시", "제한속도", "실제주행속도", "실제초과속도",
+            "고지주행속도", "고지초과속도", "처리상태", "위반차로", "차종", "장소구분",
+            "주민구분", "차명", "위반장소"
+        ]
+        if not all(col in df.columns for col in required_columns):
+            st.error("업로드된 파일의 형식이 올바르지 않습니다. 올바른 형식의 파일을 업로드해주세요.")
+        else:
+            df_analysis = df[required_columns]
+            # 개인정보 제거 후 데이터베이스에 저장
+            save_to_database(df_analysis)
+            st.success("파일이 데이터베이스에 저장되었습니다.")
+    except Exception as e:
+        st.error(f"파일을 처리하는 중 오류가 발생했습니다: {e}")
 
 # 최근 분석 결과 표시
 conn = sqlite3.connect('vehicle_violations.db')
@@ -127,21 +133,22 @@ if not df_db.empty:
         part_sum = df_selected.groupby(['위반유형'])['일련번호'].nunique().reset_index(name='건수')
         st.write(part_sum)
 
-        # 장비코드 검색 및 단속 건수 표시 (카테고리별 단속 건수 부분 합계 오른쪽에 배치)
-        col1, col2 = st.columns([2, 1])
-        with col2:
-            st.header("장비코드 검색")
-            equipment_code_input = st.text_input("장비코드를 입력하세요")
-            if equipment_code_input:
-                specific_equipment_data = df_selected[df_selected['장비코드'] == equipment_code_input]
-                specific_equipment_count = specific_equipment_data['일련번호'].nunique()
-                st.write(f"장비코드 {equipment_code_input}의 단속 건수: {specific_equipment_count}건")
-                if not specific_equipment_data.empty:
-                    st.write(f"장비코드 {equipment_code_input}의 단속 장소: {specific_equipment_data['위반장소'].iloc[0]}")
-                    st.write("단속유형별 건수:")
-                    violation_summary = specific_equipment_data['위반유형'].value_counts().reset_index()
-                    violation_summary.columns = ['위반유형', '건수']
-                    st.write(violation_summary)
+        # 장비코드 검색 및 단속 건수 표시 (카테고리별 단속 건수 부분 합계 아래에 배치)
+        st.header("장비코드 별 단속건수")
+        equipment_code_input = st.text_input("장비코드를 입력하세요")
+        if equipment_code_input:
+            specific_equipment_data = df_selected[df_selected['장비코드'] == equipment_code_input]
+            if not specific_equipment_data.empty:
+                st.write(f"장비코드 {equipment_code_input}의 단속 장소 : {specific_equipment_data['위반장소'].iloc[0]}")
+                total_daily_count = specific_equipment_data['일련번호'].nunique()  # 총합 계산
+                st.write(f"장비코드 {equipment_code_input}의 일별 단속 건수 총합 : {total_daily_count}건")
+                daily_counts = specific_equipment_data.groupby(specific_equipment_data['위반일시'].dt.date)['일련번호'].nunique().reset_index(name='단속 건수')
+                daily_counts.columns = ['날짜', '단속 건수']
+                daily_counts = daily_counts.set_index('날짜').T  # 가로 형태로 변환
+                st.write(daily_counts)
+                st.write(f"장비코드 {equipment_code_input}의 위반유형별 단속 건수:")
+                violation_counts = specific_equipment_data.groupby('위반유형')['일련번호'].nunique().reset_index(name='단속 건수')
+                st.write(violation_counts)
 
         # 장비코드별 단속 건수 상위 10개 시각화
         st.subheader('장비코드별 단속 건수 상위 10개')
@@ -211,3 +218,16 @@ if not df_db.empty:
         plt.xticks(fontproperties=font_prop)
         plt.yticks(fontproperties=font_prop)
         st.pyplot(fig)
+        
+# 데이터베이스 초기화 버튼 추가
+def reset_database():
+    conn = sqlite3.connect('vehicle_violations.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM violations')
+    conn.commit()
+    conn.close()
+
+if st.sidebar.button("전체 DB 삭제"):
+    reset_database()
+    st.warning("전체 데이터베이스가 초기화되었습니다. 분석할 파일을 새로 업로드하세요.")
+    st.experimental_rerun()

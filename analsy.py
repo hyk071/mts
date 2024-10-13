@@ -75,6 +75,9 @@ df_db = pd.read_sql('SELECT * FROM violations', conn)
 conn.close()
 
 if not df_db.empty:
+    # 장비코드 추가
+    df_db['장비코드'] = df_db['일련번호'].str[:5]
+
     # 날짜 선택 위젯 추가
     st.sidebar.header("분석 결과 날짜 선택")
     df_db['위반일시'] = pd.to_datetime(df_db['위반일시'])
@@ -124,17 +127,53 @@ if not df_db.empty:
         part_sum = df_selected.groupby(['위반유형'])['일련번호'].nunique().reset_index(name='건수')
         st.write(part_sum)
 
-        # 단속 건수가 급증한 장비 경고 알림
-        df_db['장비코드'] = df_db['일련번호'].str[:5]
-        equipment_counts = df_db.groupby('장비코드').size()
-        df_selected['장비코드'] = df_selected['일련번호'].str[:5]
-        recent_counts = df_selected.groupby('장비코드').size().reindex(equipment_counts.index, fill_value=0)
-        increase_threshold = 1.5  # 1.5배 이상 증가한 경우 경고
-        alerts = recent_counts[recent_counts > (equipment_counts * increase_threshold)]
+        # 장비코드 검색 및 단속 건수 표시 (카테고리별 단속 건수 부분 합계 오른쪽에 배치)
+        col1, col2 = st.columns([2, 1])
+        with col2:
+            st.header("장비코드 검색")
+            equipment_code_input = st.text_input("장비코드를 입력하세요")
+            if equipment_code_input:
+                specific_equipment_data = df_selected[df_selected['장비코드'] == equipment_code_input]
+                specific_equipment_count = specific_equipment_data['일련번호'].nunique()
+                st.write(f"장비코드 {equipment_code_input}의 단속 건수: {specific_equipment_count}건")
+                if not specific_equipment_data.empty:
+                    st.write(f"장비코드 {equipment_code_input}의 단속 장소: {specific_equipment_data['위반장소'].iloc[0]}")
+                    st.write("단속유형별 건수:")
+                    violation_summary = specific_equipment_data['위반유형'].value_counts().reset_index()
+                    violation_summary.columns = ['위반유형', '건수']
+                    st.write(violation_summary)
 
-        if not alerts.empty:
-            st.warning("경고: 단속 건수가 급증한 장비가 발견되었습니다.")
-            st.write(alerts)
+        # 장비코드별 단속 건수 상위 10개 시각화
+        st.subheader('장비코드별 단속 건수 상위 10개')
+        equipment_top10 = df_selected['장비코드'].value_counts().head(10)
+        fig, ax = plt.subplots()
+        ax.bar(equipment_top10.index, equipment_top10.values, color='skyblue')
+        ax.set_xlabel('장비코드', fontproperties=font_prop)
+        ax.set_ylabel('건수', fontproperties=font_prop)
+        ax.set_title('장비코드별 단속 건수 (상위 10개)', fontproperties=font_prop)
+        plt.xticks(fontproperties=font_prop)
+        plt.yticks(fontproperties=font_prop)
+        st.pyplot(fig)
+
+        # 단속 건수가 급증한 장비 경고 알림 (통계적 이상치 탐지)
+        st.subheader('단속 건수 급증 경고')
+        equipment_counts = df_db.groupby(['장비코드', df_db['위반일시'].dt.date]).size().unstack(fill_value=0)
+        rolling_mean = equipment_counts.rolling(window=7, axis=1).mean()
+        rolling_std = equipment_counts.rolling(window=7, axis=1).std()
+        threshold = rolling_mean + (2 * rolling_std)  # 이동 평균 + 2표준편차를 이상치 기준으로 설정
+        recent_counts = df_selected.groupby('장비코드').size()
+
+        alerts = []
+        for code in recent_counts.index:
+            if code in threshold.columns and recent_counts[code] > threshold[code].iloc[-1]:
+                alerts.append((code, recent_counts[code]))
+
+        if alerts:
+            st.warning("경고: 통계적 이상치가 발견된 단속 장비가 있습니다.")
+            alert_df = pd.DataFrame(alerts, columns=['장비코드', '단속 건수'])
+            st.write(alert_df)
+            for code, count in alerts:
+                st.write(f"장비코드 {code}에서 최근 단속 건수가 통계적 이상")
 
         # 위반 유형별 발생 빈도 시각화
         st.subheader('위반 유형별 발생 빈도')

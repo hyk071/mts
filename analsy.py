@@ -89,16 +89,24 @@ if not df_db.empty:
 
     # 필터 추가
     st.sidebar.header("필터 설정")
-    violation_type_filter = st.sidebar.multiselect("위반유형 선택", options=df_selected['위반유형'].unique(), default=df_selected['위반유형'].unique())
-    status_filter = st.sidebar.multiselect("처리상태 선택", options=df_selected['처리상태'].unique(), default=df_selected['처리상태'].unique())
-    location_type_filter = st.sidebar.multiselect("장소구분 선택", options=df_selected['장소구분'].unique(), default=df_selected['장소구분'].unique())
+    violation_type_filter = st.sidebar.selectbox("위반유형 선택", options=['전체'] + list(df_selected['위반유형'].unique()), index=0, key='violation_type_filter')
+    status_filter = st.sidebar.selectbox("처리상태 선택", options=['전체'] + list(df_selected['처리상태'].unique()), index=0, key='status_filter')
+    location_type_filter = st.sidebar.selectbox("장소구분 선택", options=['전체'] + list(df_selected['장소구분'].unique()), index=0, key='location_type_filter')
+
+    # 필터 리셋 버튼 추가
+    if st.sidebar.button("필터 리셋"):
+        for key in ['violation_type_filter', 'status_filter', 'location_type_filter']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.experimental_rerun()
 
     # 필터 적용
-    df_selected = df_selected[
-        (df_selected['위반유형'].isin(violation_type_filter)) &
-        (df_selected['처리상태'].isin(status_filter)) &
-        (df_selected['장소구분'].isin(location_type_filter))
-    ]
+    if violation_type_filter != '전체':
+        df_selected = df_selected[df_selected['위반유형'] == violation_type_filter]
+    if status_filter != '전체':
+        df_selected = df_selected[df_selected['처리상태'] == status_filter]
+    if location_type_filter != '전체':
+        df_selected = df_selected[df_selected['장소구분'] == location_type_filter]
 
     if not df_selected.empty:
         # 분석 결과 제목 표시
@@ -108,11 +116,19 @@ if not df_db.empty:
 
         # 단속 건수 표로 표시
         st.subheader('단속 건수 요약')
-        st.write(df_selected.groupby(['위반유형', '장소구분', '처리상태']).size().reset_index(name='건수'))
+        total_count = df_selected['일련번호'].nunique()
+        st.write(f'단속 건수 총합계: {total_count}건')
+        summary = df_selected.groupby(['위반유형', '장소구분', '처리상태']).size().reset_index(name='건수')
+        st.write(summary)
+        st.write("카테고리 별 단속 건수 부분 합계:")
+        part_sum = df_selected.groupby(['위반유형'])['일련번호'].nunique().reset_index(name='건수')
+        st.write(part_sum)
 
         # 단속 건수가 급증한 장비 경고 알림
-        equipment_counts = df_db.groupby('일련번호').size()
-        recent_counts = df_selected.groupby('일련번호').size().reindex(equipment_counts.index, fill_value=0)
+        df_db['장비코드'] = df_db['일련번호'].str[:5]
+        equipment_counts = df_db.groupby('장비코드').size()
+        df_selected['장비코드'] = df_selected['일련번호'].str[:5]
+        recent_counts = df_selected.groupby('장비코드').size().reindex(equipment_counts.index, fill_value=0)
         increase_threshold = 1.5  # 1.5배 이상 증가한 경우 경고
         alerts = recent_counts[recent_counts > (equipment_counts * increase_threshold)]
 
@@ -156,36 +172,3 @@ if not df_db.empty:
         plt.xticks(fontproperties=font_prop)
         plt.yticks(fontproperties=font_prop)
         st.pyplot(fig)
-
-        # 위반 장소 지도 시각화
-        st.subheader('위반 장소 지도 시각화')
-        m = folium.Map(location=[37.5665, 126.9780], zoom_start=12)
-        for _, row in df_selected.iterrows():
-            folium.Marker(
-                location=[random.uniform(37.5, 37.7), random.uniform(126.8, 127.0)],  # 위반장소 위도, 경도 예시
-                popup=f"위반유형: {row['위반유형']}, 제한속도: {row['제한속도']}"
-            ).add_to(m)
-        folium_static(m)
-
-        # 위반차로별 건수 시각화
-        st.subheader('위반차로별 건수')
-        lane_counts = df_selected['위반차로'].value_counts()
-        fig, ax = plt.subplots()
-        ax.bar(lane_counts.index, lane_counts.values, color='skyblue')
-        ax.set_xlabel('위반차로', fontproperties=font_prop)
-        ax.set_ylabel('건수', fontproperties=font_prop)
-        ax.set_title('위반차로별 건수', fontproperties=font_prop)
-        plt.xticks(fontproperties=font_prop)
-        plt.yticks(fontproperties=font_prop)
-        st.pyplot(fig)
-
-# 리셋 버튼 추가
-if st.sidebar.button("분석 결과 리셋"):
-    conn = sqlite3.connect('vehicle_violations.db')
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM violations WHERE 위반일시 BETWEEN ? AND ?', (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
-    conn.commit()
-    conn.close()
-    st.sidebar.success("선택한 기간의 분석 결과가 리셋되었습니다.")
-    df_db = df_db[(df_db['위반일시'].dt.date < start_date) | (df_db['위반일시'].dt.date > end_date)]
-    df_selected = pd.DataFrame()

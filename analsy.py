@@ -42,11 +42,32 @@ def create_database():
     conn.commit()
     conn.close()
 
-# 데이터베이스에 데이터 저장
+# 데이터베이스에 데이터 저장 (중복 확인 추가)
 def save_to_database(df):
     conn = sqlite3.connect('vehicle_violations.db')
-    df.to_sql('violations', conn, if_exists='append', index=False, chunksize=1000)
+    cursor = conn.cursor()
+    for _, row in df.iterrows():
+        # 중복된 일련번호가 있는지 확인하고, 이미 존재하면 무시하도록 설정
+        cursor.execute('''
+            INSERT OR IGNORE INTO violations (일련번호, 위반유형, 위반일시, 제한속도, 실제주행속도, 실제초과속도, 고지주행속도, 고지초과속도, 처리상태, 위반차로, 차종, 장소구분, 주민구분, 차명, 위반장소)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            row['일련번호'], row['위반유형'], row['위반일시'], row['제한속도'], row['실제주행속도'], row['실제초과속도'],
+            row['고지주행속도'], row['고지초과속도'], row['처리상태'], row['위반차로'], row['차종'], row['장소구분'],
+            row['주민구분'], row['차명'], row['위반장소']
+        ))
+    conn.commit()
     conn.close()
+
+# 변경된 부분
+# - save_to_database 함수에서 중복된 일련번호가 있는 경우 데이터를 무시하도록 'INSERT OR IGNORE' SQL 문을 추가하였습니다.
+# - 이를 통해 동일한 일련번호가 여러 번 삽입되는 것을 방지합니다.
+
+# 원본 코드 예시:
+# df.to_sql('violations', conn, if_exists='append', index=False, chunksize=1000)
+
+# 변경된 코드:
+# 커서와 for 루프를 사용하여 'INSERT OR IGNORE'로 데이터 삽입 처리
 
 # Streamlit 앱
 st.title('차량단속 데이터 분석 대시보드')
@@ -257,3 +278,4 @@ if st.sidebar.button("전체 DB 삭제"):
     reset_database()
     st.warning("전체 데이터베이스가 초기화되었습니다. 분석할 파일을 새로 업로드하세요.")
     st.experimental_rerun()
+  

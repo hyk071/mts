@@ -155,7 +155,7 @@ def send_email_alert(recipient_email, subject, body):
 st.title("차량단속 데이터 분석 대시보드")
 
 # 데이터베이스 생성
-tab1, tab2 = st.tabs(["단속건수 분석", "단속장비 시각화"])
+tab1, tab2 = st.tabs(["단속건수 분석", "단속장비 정보조회"])
 
 # 단속건수 분석 탭
 with tab1:

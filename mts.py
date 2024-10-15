@@ -10,6 +10,7 @@ import datetime
 import random
 import os
 import matplotlib.font_manager as fm
+import re
 
 API_URL = "http://api.data.go.kr/openapi/tn_pubr_public_unmanned_traffic_camera_api"
 SERVICE_KEY = "2ReGLeF8d8+JQrzLO3u3VGwVQ58Fi6mZVAogLJ3OBSmCTAfvjKs2dObu+juc2BSS4jdNlo1Q/o0du+b8z9SuKQ=="
@@ -85,29 +86,28 @@ def correct_region_name(input_name):
     return region_mapping.get(input_name, input_name)
 
 # 카메라 데이터를 가져오는 함수
-def get_camera_data(city, district=None):
+def get_camera_data(city=None, district=None, equipment_code=None):
     params = {
         'serviceKey': SERVICE_KEY,
         'numOfRows': 1000,
         'pageNo': 1,
-        'type': 'json',
-        'ctprvnNm': correct_region_name(city),
+        'type': 'json'
     }
-    
-    if district:
-        params['signguNm'] = district
+
+    if equipment_code:
+        params['mnlssRegltCameraManageNo'] = equipment_code
+    else:
+        if city:
+            params['ctprvnNm'] = correct_region_name(city)
+        if district:
+            params['signguNm'] = district
     
     response = requests.get(API_URL, params=params)
     
     if response.status_code == 200:
         data = response.json()
         if 'response' in data and 'body' in data['response'] and 'items' in data['response']['body']:
-            # 데이터 필터링: 단속구분이 1 또는 2인 항목만 선택
-            filtered_cameras = [
-                camera for camera in data['response']['body']['items'] 
-                if camera.get('regltSe') in ['1', '2']
-            ]
-            return filtered_cameras
+            return data['response']['body']['items']
         else:
             st.warning("해당 요청에 대한 데이터를 찾을 수 없습니다.")
             return []
@@ -220,6 +220,7 @@ with tab1:
                     total_specific_violations = specific_equipment_data['일련번호'].nunique()
                     st.write(f'총 단속건수: {total_specific_violations} 건')
                     st.write(combined_df_specific)
+                    
             # 장비코드별 단속 건수 상위 10개 시각화
             st.subheader('장비코드별 단속 건수 상위 10개')
             equipment_top10 = df_selected['장비코드'].value_counts().head(10)
@@ -307,54 +308,38 @@ with tab1:
                 ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height()}', ha='center', va='bottom', fontproperties=font_prop)
             st.pyplot(fig)
 
-# 단속장비 시각화 탭
+# 단속장비 정보조회 탭
 with tab2:
-    st.header("무인 교통 단속 카메라 위치 시각화")
-    # 사용자가 시도명과 시군구명을 입력할 수 있도록 텍스트 입력 필드 추가
-    city = st.text_input("시도명을 입력하세요 (예: 서울, 경상남도 등)", "서울특별시")
-    district = st.text_input("시군구명을 입력하세요 (예: 강남구, 창원시 등)")
-
-    # 세션 상태에 데이터가 있는 경우 표시
-    if 'camera_data' in st.session_state and st.session_state['camera_data']:
-        df = pd.DataFrame(st.session_state['camera_data'])
-        st.write(f"{city} {district}의 카메라 데이터:")
-        st.dataframe(df)
-        
+    st.header("무인 교통 단속 카메라 정보조회")
     # 장비코드를 입력받아 해당 정보를 조회하는 폼 추가
     equipment_code_input = st.text_input("장비코드를 입력하세요 (예: F1234, G5678 등)", key='equipment_code_lookup')
     if equipment_code_input:
         pattern = r'^[F-J][0-9]{4}$'
         if re.match(pattern, equipment_code_input):
-            params = {
-                'serviceKey': SERVICE_KEY,
-                'numOfRows': 1,
-                'pageNo': 1,
-                'type': 'json',
-                'mnlssRegltCameraManageNo': equipment_code_input
-            }
-            response = requests.get(API_URL, params=params)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if 'response' in data and 'body' in data['response'] and 'items' in data['response']['body']:
-                    specific_camera_data = data['response']['body']['items']
-                    if specific_camera_data:
-                        st.write(f"장비코드 {equipment_code_input}의 카메라 데이터:")
-                        st.dataframe(pd.DataFrame(specific_camera_data))
-                    else:
-                        st.write(f"장비코드 {equipment_code_input}에 해당하는 카메라 정보가 없습니다.")
-                else:
-                    st.write(f"장비코드 {equipment_code_input}에 해당하는 카메라 정보가 없습니다.")
+            specific_camera_data = get_camera_data(equipment_code=equipment_code_input)
+            if specific_camera_data:
+                st.write(f"장비코드 {equipment_code_input}의 카메라 데이터:")
+                st.dataframe(pd.DataFrame(specific_camera_data))
             else:
-                st.error(f"API 요청 실패: {response.text}")
+                st.write(f"장비코드 {equipment_code_input}에 해당하는 카메라 정보가 없습니다.")
         else:
             st.error("올바른 장비코드를 입력해주세요 (알파벳 F-J, 숫자 0000-9999 형식)")
-        
+    else:
+        # 시도명과 시군구명 입력 필드 추가
+        city = st.text_input("시도명을 입력하세요 (예: 서울, 경상남도 등)", "서울특별시")
+        district = st.text_input("시군구명을 입력하세요 (예: 강남구, 창원시 등)")
+
         # 사용자가 버튼을 눌러 데이터를 가져옴
         if st.button("카메라 데이터 가져오기"):
-            camera_data = get_camera_data(city, district)
+            camera_data = get_camera_data(city=city, district=district)
             st.session_state['camera_data'] = camera_data
-        
+
+    # 세션 상태에 데이터가 있는 경우 표시
+    if 'camera_data' in st.session_state and st.session_state['camera_data'] and not equipment_code_input:
+        df = pd.DataFrame(st.session_state['camera_data'])
+        st.write(f"{city} {district}의 카메라 데이터:")
+        st.dataframe(df)
+
         # 지도 생성
         if not df.empty:
             center_lat = df['latitude'].astype(float).mean()
@@ -379,7 +364,8 @@ with tab2:
         else:
             st.write("제한속도 데이터가 없습니다.")
     else:
-        st.write("해당 지역에 대한 데이터를 찾을 수 없습니다.")
+        if not equipment_code_input:
+            st.write("해당 지역에 대한 데이터를 찾을 수 없습니다.")
 
 # 데이터베이스 초기화 버튼
 if st.sidebar.button("전체 DB 삭제"):

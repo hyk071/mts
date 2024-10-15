@@ -124,6 +124,7 @@ def reset_database():
     conn.close()
     if 'equipment_code_input' in st.session_state:
         del st.session_state['equipment_code_input']
+    st.warning("전체 데이터베이스가 초기화되었습니다. 분석할 파일을 새로 업로드하세요. 수동으로 새로고침 해주세요.")
 
 # Streamlit 앱 시작
 st.title("차량단속 데이터 분석 대시보드")
@@ -157,8 +158,7 @@ with tab1:
         if isinstance(date_range, tuple) and len(date_range) == 2:
             start_date, end_date = date_range
         else:
-            st.sidebar.error("종료일을 선택하세요.")
-            st.stop()
+            start_date, end_date = min(available_dates), max(available_dates)
         df_selected = df_db[(df_db['위반일시'].dt.date >= start_date) & (df_db['위반일시'].dt.date <= end_date)]
 
         # 필터 추가
@@ -172,7 +172,7 @@ with tab1:
             for key in ['violation_type_filter', 'status_filter', 'location_type_filter']:
                 if key in st.session_state:
                     del st.session_state[key]
-            st.experimental_rerun()
+            st.warning("필터가 초기화되었습니다. 필요한 필터를 다시 선택하세요.")
 
         # 필터 적용
         if violation_type_filter != '전체':
@@ -204,7 +204,7 @@ with tab1:
 
             # 장비코드 검색 및 단속 건수 표시 (통합 표로 변경)
             st.header("장비코드 별 단속건수")
-            equipment_code_input = st.text_input("장비코드를 입력하세요", value="", key='equipment_code_input')
+            equipment_code_input = st.text_input("장비코드를 입력하세요 (예: F1234, G5678 등)", value="", key='equipment_code_input')
             if equipment_code_input:
                 specific_equipment_data = df_selected[df_selected['장비코드'] == equipment_code_input]
                 if not specific_equipment_data.empty:
@@ -220,111 +220,26 @@ with tab1:
                     total_specific_violations = specific_equipment_data['일련번호'].nunique()
                     st.write(f'총 단속건수: {total_specific_violations} 건')
                     st.write(combined_df_specific)
-                    
-            # 장비코드별 단속 건수 상위 10개 시각화
-            st.subheader('장비코드별 단속 건수 상위 10개')
-            equipment_top10 = df_selected['장비코드'].value_counts().head(10)
-            fig, ax = plt.subplots()
-            bars = ax.bar(equipment_top10.index, equipment_top10.values, color='skyblue')
-            ax.set_xlabel('장비코드', fontproperties=font_prop)
-            ax.set_ylabel('건수', fontproperties=font_prop)
-            ax.set_title('장비코드별 단속 건수 (상위 10개)', fontproperties=font_prop)
-            plt.xticks(fontproperties=font_prop)
-            plt.yticks(fontproperties=font_prop)
-
-            # 그래프에 마우스를 올렸을 때 건수 표시
-            for bar in bars:
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height()}', ha='center', va='bottom', fontproperties=font_prop)
-            st.pyplot(fig)
-
-            # 단속 건수가 급증한 장비 경고 알림 (통계적 이상치 탐지)
-            st.subheader('단속 건수 급증 경고')
-            equipment_counts = df_db.groupby(['장비코드', df_db['위반일시'].dt.date])['일련번호'].nunique().unstack(fill_value=0)
-            rolling_mean = equipment_counts.rolling(window=7, axis=1).mean()
-            rolling_std = equipment_counts.rolling(window=7, axis=1).std()
-            threshold = rolling_mean + (2 * rolling_std)  # 이동 평균 + 2표준편차를 이상치 기준으로 설정
-            recent_counts = df_selected.groupby('장비코드')['일련번호'].nunique()
-
-            alerts = []
-            for code in recent_counts.index:
-                if code in threshold.columns and recent_counts[code] > threshold[code].iloc[-1]:
-                    alerts.append((code, recent_counts[code]))
-
-            if alerts:
-                st.warning("경고: 통계적 이상치가 발견된 단속 장비가 있습니다.")
-                alert_df = pd.DataFrame(alerts, columns=['장비코드', '단속 건수'])
-                st.write(alert_df)
-                for code, count in alerts:
-                    st.write(f"장비코드 {code}에서 최근 단속 건수가 통계적 이상")
-
-            # 위반 유형별 발생 빈도 시각화
-            st.subheader('위반 유형별 단속건수')
-            violation_counts = df_selected['위반유형'].value_counts()
-            fig, ax = plt.subplots()
-            bars = ax.bar(violation_counts.index, violation_counts.values, color='skyblue')
-            ax.set_xlabel('위반유형', fontproperties=font_prop)
-            ax.set_ylabel('건수', fontproperties=font_prop)
-            ax.set_title('위반 유형별 단속건수', fontproperties=font_prop)
-            plt.xticks(fontproperties=font_prop)
-            plt.yticks(fontproperties=font_prop)
-
-            # 그래프에 마우스를 올렸을 때 건수 표시
-            for bar in bars:
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height()}', ha='center', va='bottom', fontproperties=font_prop)
-            st.pyplot(fig)
-
-            # 시간대별 단속 건수 시각화
-            df_selected['시간대'] = df_selected['위반일시'].dt.hour
-            time_counts = df_selected['시간대'].value_counts().sort_index()
-            st.subheader('시간대별 단속건수')
-            fig, ax = plt.subplots()
-            line, = ax.plot(time_counts.index, time_counts.values, marker='o', color='skyblue')
-            ax.set_xlabel('시간대', fontproperties=font_prop)
-            ax.set_ylabel('건수', fontproperties=font_prop)
-            ax.set_title('시간대별 단속건수', fontproperties=font_prop)
-            ax.set_xticks(range(0, 24, 1))  # 가로축 간격 1시간 단위로 설정
-            ax.set_yticks(range(0, max(time_counts.values) + 10, 10))  # 세로축 간격 10 단위로 설정
-            plt.xticks(fontproperties=font_prop)
-            plt.yticks(fontproperties=font_prop)
-
-            # 그래프에 마우스를 올렸을 때 건수 표시
-            for i, txt in enumerate(time_counts.values):
-                ax.text(time_counts.index[i], time_counts.values[i], f'{txt}', ha='center', va='bottom', fontproperties=font_prop)
-            st.pyplot(fig)
-
-            # 차종별 위반 건수 시각화
-            st.subheader('차종별 단속건수')
-            car_type_counts = df_selected['차종'].value_counts()
-            fig, ax = plt.subplots()
-            bars = ax.bar(car_type_counts.index, car_type_counts.values, color='skyblue')
-            ax.set_xlabel('차종', fontproperties=font_prop)
-            ax.set_ylabel('건수', fontproperties=font_prop)
-            ax.set_title('차종별 단속건수', fontproperties=font_prop)
-            plt.xticks(fontproperties=font_prop)
-            plt.yticks(fontproperties=font_prop)
-
-            # 그래프에 마우스를 올렸을 때 건수 표시
-            for bar in bars:
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height()}', ha='center', va='bottom', fontproperties=font_prop)
-            st.pyplot(fig)
 
 # 단속장비 정보조회 탭
 with tab2:
     st.header("무인 교통 단속 카메라 정보조회")
     # 장비코드를 입력받아 해당 정보를 조회하는 폼 추가
-    equipment_code_input = st.text_input("장비코드를 입력하세요 (예: F1234, G5678 등)", key='equipment_code_lookup')
-    if equipment_code_input:
-        pattern = r'^[F-J][0-9]{4}$'
-        if re.match(pattern, equipment_code_input):
-            specific_camera_data = get_camera_data(equipment_code=equipment_code_input)
-            if specific_camera_data:
-                st.write(f"장비코드 {equipment_code_input}의 카메라 데이터:")
-                st.dataframe(pd.DataFrame(specific_camera_data))
+    option = st.radio("조회 옵션을 선택하세요", ('장비코드로 조회', '시도명/시군구명으로 조회'))
+    if option == '장비코드로 조회':
+        equipment_code_input = st.text_input("장비코드를 입력하세요 (예: F1234, G5678 등)", key='equipment_code_lookup')
+        if equipment_code_input:
+            pattern = r'^[F-J][0-9]{4}$'
+            if re.match(pattern, equipment_code_input):
+                specific_camera_data = get_camera_data(equipment_code=equipment_code_input)
+                if specific_camera_data:
+                    st.write(f"장비코드 {equipment_code_input}의 카메라 데이터:")
+                    st.dataframe(pd.DataFrame(specific_camera_data))
+                else:
+                    st.write(f"장비코드 {equipment_code_input}에 해당하는 카메라 정보가 없습니다.")
             else:
-                st.write(f"장비코드 {equipment_code_input}에 해당하는 카메라 정보가 없습니다.")
-        else:
-            st.error("올바른 장비코드를 입력해주세요 (알파벳 F-J, 숫자 0000-9999 형식)")
-    else:
+                st.error("올바른 장비코드를 입력해주세요 (알파벳 F-J, 숫자 0000-9999 형식)")
+    elif option == '시도명/시군구명으로 조회':
         # 시도명과 시군구명 입력 필드 추가
         city = st.text_input("시도명을 입력하세요 (예: 서울, 경상남도 등)", "서울특별시")
         district = st.text_input("시군구명을 입력하세요 (예: 강남구, 창원시 등)")
@@ -335,7 +250,7 @@ with tab2:
             st.session_state['camera_data'] = camera_data
 
     # 세션 상태에 데이터가 있는 경우 표시
-    if 'camera_data' in st.session_state and st.session_state['camera_data'] and not equipment_code_input:
+    if 'camera_data' in st.session_state and st.session_state['camera_data'] and option == '시도명/시군구명으로 조회':
         df = pd.DataFrame(st.session_state['camera_data'])
         st.write(f"{city} {district}의 카메라 데이터:")
         st.dataframe(df)
@@ -356,19 +271,7 @@ with tab2:
             # Streamlit에 Folium 지도 표시
             st_folium(folium_map)
 
-        # 제한속도 분석
-        st.write("### 제한속도 분석")
-        if 'lmttVe' in df.columns:
-            speed_limit_counts = df['lmttVe'].value_counts().sort_index()
-            st.bar_chart(speed_limit_counts)
-        else:
-            st.write("제한속도 데이터가 없습니다.")
-    else:
-        if not equipment_code_input:
-            st.write("해당 지역에 대한 데이터를 찾을 수 없습니다.")
-
 # 데이터베이스 초기화 버튼
 if st.sidebar.button("전체 DB 삭제"):
     reset_database()
-    st.warning("전체 데이터베이스가 초기화되었습니다. 분석할 파일을 새로 업로드하세요.")
-    st.experimental_rerun()
+    st.warning("전체 데이터베이스가 초기화되었습니다. 수동으로 새로고침 해주세요.")

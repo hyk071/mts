@@ -314,17 +314,47 @@ with tab2:
     city = st.text_input("시도명을 입력하세요 (예: 서울, 경상남도 등)", "서울특별시")
     district = st.text_input("시군구명을 입력하세요 (예: 강남구, 창원시 등)")
 
-    # 사용자가 버튼을 눌러 데이터를 가져옴
-    if st.button("카메라 데이터 가져오기"):
-        camera_data = get_camera_data(city, district)
-        st.session_state['camera_data'] = camera_data
-
     # 세션 상태에 데이터가 있는 경우 표시
     if 'camera_data' in st.session_state and st.session_state['camera_data']:
         df = pd.DataFrame(st.session_state['camera_data'])
         st.write(f"{city} {district}의 카메라 데이터:")
         st.dataframe(df)
-
+        
+    # 장비코드를 입력받아 해당 정보를 조회하는 폼 추가
+    equipment_code_input = st.text_input("장비코드를 입력하세요 (예: F1234, G5678 등)", key='equipment_code_lookup')
+    if equipment_code_input:
+        pattern = r'^[F-J][0-9]{4}$'
+        if re.match(pattern, equipment_code_input):
+            params = {
+                'serviceKey': SERVICE_KEY,
+                'numOfRows': 1,
+                'pageNo': 1,
+                'type': 'json',
+                'mnlssRegltCameraManageNo': equipment_code_input
+            }
+            response = requests.get(API_URL, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'response' in data and 'body' in data['response'] and 'items' in data['response']['body']:
+                    specific_camera_data = data['response']['body']['items']
+                    if specific_camera_data:
+                        st.write(f"장비코드 {equipment_code_input}의 카메라 데이터:")
+                        st.dataframe(pd.DataFrame(specific_camera_data))
+                    else:
+                        st.write(f"장비코드 {equipment_code_input}에 해당하는 카메라 정보가 없습니다.")
+                else:
+                    st.write(f"장비코드 {equipment_code_input}에 해당하는 카메라 정보가 없습니다.")
+            else:
+                st.error(f"API 요청 실패: {response.text}")
+        else:
+            st.error("올바른 장비코드를 입력해주세요 (알파벳 F-J, 숫자 0000-9999 형식)")
+        
+        # 사용자가 버튼을 눌러 데이터를 가져옴
+        if st.button("카메라 데이터 가져오기"):
+            camera_data = get_camera_data(city, district)
+            st.session_state['camera_data'] = camera_data
+        
         # 지도 생성
         if not df.empty:
             center_lat = df['latitude'].astype(float).mean()

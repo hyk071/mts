@@ -11,6 +11,9 @@ import random
 import os
 import matplotlib.font_manager as fm
 import re
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 API_URL = "http://api.data.go.kr/openapi/tn_pubr_public_unmanned_traffic_camera_api"
 SERVICE_KEY = "2ReGLeF8d8+JQrzLO3u3VGwVQ58Fi6mZVAogLJ3OBSmCTAfvjKs2dObu+juc2BSS4jdNlo1Q/o0du+b8z9SuKQ=="
@@ -73,14 +76,14 @@ def correct_region_name(input_name):
         '대구': '대구광역시',
         '광주': '광주광역시',
         '인천': '인천광역시',
-        '전라북도': '전라북도',
-        '전라남도': '전라남도',
-        '경상남도': '경상남도',
-        '경상북도': '경상북도',
-        '충청북도': '충청북도',
-        '충청남도': '충청남도',
-        '강원도': '강원도',
-        '경기도': '경기도',
+        '전라북도': '전북',
+        '전라남도': '전남',
+        '경상남도': '경남',
+        '경상북도': '경북',
+        '충청북도': '충북',
+        '충청남도': '충남',
+        '강원도': '강원',
+        '경기도': '경기',
         # 필요에 따라 더 많은 지역 추가
     }
     return region_mapping.get(input_name, input_name)
@@ -94,9 +97,11 @@ def get_camera_data(city=None, district=None, equipment_code=None):
         'type': 'json'
     }
 
+    # 장비코드가 입력된 경우 해당 장비코드로 데이터 조회
     if equipment_code:
         params['mnlssRegltCameraManageNo'] = equipment_code
     else:
+        # 시도명과 시군구명을 기준으로 데이터 조회
         if city:
             params['ctprvnNm'] = correct_region_name(city)
         if district:
@@ -125,6 +130,26 @@ def reset_database():
     if 'equipment_code_input' in st.session_state:
         del st.session_state['equipment_code_input']
     st.warning("전체 데이터베이스가 초기화되었습니다. 분석할 파일을 새로 업로드하세요. 수동으로 새로고침 해주세요.")
+
+# 이메일 알림 기능 추가
+def send_email_alert(recipient_email, subject, body):
+    sender_email = "your_email@example.com"
+    sender_password = "your_password"
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        server.close()
+        st.success("이메일 알림이 성공적으로 전송되었습니다.")
+    except Exception as e:
+        st.error(f"이메일 전송 실패: {e}")
 
 # Streamlit 앱 시작
 st.title("차량단속 데이터 분석 대시보드")
@@ -202,6 +227,15 @@ with tab1:
             st.write(f'총 단속건수: {total_violations} 건')
             st.write(combined_df)
 
+            # 데이터 다운로드 버튼 추가
+            csv = df_selected.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="데이터 다운로드 (CSV)",
+                data=csv,
+                file_name='traffic_violation_data.csv',
+                mime='text/csv'
+            )
+
             # 장비코드 검색 및 단속 건수 표시 (통합 표로 변경)
             st.header("장비코드 별 단속건수")
             equipment_code_input = st.text_input("장비코드를 입력하세요 (예: F1234, G5678 등)", value="", key='equipment_code_input')
@@ -220,6 +254,16 @@ with tab1:
                     total_specific_violations = specific_equipment_data['일련번호'].nunique()
                     st.write(f'총 단속건수: {total_specific_violations} 건')
                     st.write(combined_df_specific)
+
+                    # 이메일 알림 발송 옵션 추가
+                    recipient_email = st.text_input("이메일 주소를 입력하세요 (알림 전송용)")
+                    if st.button("이메일 알림 발송"):
+                        if recipient_email:
+                            subject = f"장비코드 {equipment_code_input}의 단속 건수 통계"
+                            body = combined_df_specific.to_string()
+                            send_email_alert(recipient_email, subject, body)
+                        else:
+                            st.error("이메일 주소를 입력해주세요.")
 
 # 단속장비 정보조회 탭
 with tab2:

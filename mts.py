@@ -317,8 +317,6 @@ with tab2:
 
 # TCS와 TEMS 데이터 비교 탭
 with tab3:
-    st.set_page_config(page_title="TCS와 TEMS 데이터 비교 도구", layout="wide")
-
     st.title("TCS와 TEMS 데이터 비교 도구")
     st.write("두 개의 엑셀 파일을 업로드하여 데이터 일치 여부를 확인하세요.")
 

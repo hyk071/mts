@@ -155,7 +155,7 @@ def send_email_alert(recipient_email, subject, body):
 st.title("차량단속 데이터 분석 대시보드")
 
 # 데이터베이스 생성
-tab1, tab2 = st.tabs(["단속건수 분석", "단속장비 정보조회"])
+tab1, tab2, tab3 = st.tabs(["단속건수 분석", "단속장비 정보조회", "TCS와 TEMS 데이터 비교"])
 
 # 단속건수 분석 탭
 with tab1:
@@ -314,6 +314,190 @@ with tab2:
 
             # Streamlit에 Folium 지도 표시
             st_folium(folium_map)
+
+# TCS와 TEMS 데이터 비교 탭
+with tab3:
+    st.set_page_config(page_title="TCS와 TEMS 데이터 비교 도구", layout="wide")
+
+    st.title("TCS와 TEMS 데이터 비교 도구")
+    st.write("두 개의 엑셀 파일을 업로드하여 데이터 일치 여부를 확인하세요.")
+
+    # 파일 업로더
+    col1, col2 = st.columns(2)
+
+    with col1:
+        uploaded_tcs = st.file_uploader("TCS 엑셀 파일 업로드", type=['xlsx'])
+    with col2:
+        uploaded_tems = st.file_uploader("TEMS 엑셀 파일 업로드", type=['xlsx'])
+
+    if uploaded_tcs is not None and uploaded_tems is not None:
+        # 데이터 로드
+        df_tcs = pd.read_excel(uploaded_tcs)
+        df_tems = pd.read_excel(uploaded_tems)
+
+        # 열 이름 매핑
+        tcs_column_mapping = {
+            '장비번호': '장비코드',
+            '운영상태': '장비운영상태',
+            '장비종류': '단속형태',
+            '설치장소': '설치지점',
+            '설치 장소': '설치지점',
+            '관할서': '관할경찰서',
+            '제한속도(소형)': '제한속도',
+            '단속속도(소형)': '단속속도',
+            '최초정상운영시작일': '정상운영일',
+            '제작회사': '설치업체'
+        }
+
+        tems_column_mapping = {
+            '제어기 번호': '장비코드',
+            '제어기모드': '장비운영상태',
+            '제어기모드 ': '장비운영상태',
+            '제어기 유형': '단속형태',
+            '설치주소': '설치지점',
+            '설치 주소': '설치지점',
+            '경찰서 명칭': '관할경찰서',
+            '소형제한속도': '제한속도',
+            '소형단속속도': '단속속도',
+            '설치일시': '정상운영일',
+            '업체명': '설치업체'
+        }
+
+        # 열 이름 통일
+        df_tcs.rename(columns=tcs_column_mapping, inplace=True)
+        df_tems.rename(columns=tems_column_mapping, inplace=True)
+
+        # 값 매핑 딕셔너리 (비교 시 사용)
+        value_mappings = {
+            '설치업체': {
+                '토페스': '토페스',
+                '(주)토페스': '토페스',
+                '건아정보': '건아정보기술(주)',
+                '건아정보기술': '건아정보기술(주)',
+                '건아정보(주)': '건아정보기술(주)',
+                '건아기전': '건아정보기술(주)',
+                '건아': '건아정보기술(주)',
+                '건아정보기술(주)': '건아정보기술(주)',
+                '진우산전': '진우ATS',
+                '진우산전(주)': '진우ATS',
+                '진우': '진우ATS',
+                '진우에티에스': '진우ATS',
+                '진우에이티에스': '진우ATS',
+                '유니시큐': '유니시큐',
+                '유니씨큐': '유니시큐',
+                '아몽': '아몽솔루션(주)',
+                '아몽솔루션': '아몽솔루션(주)',
+                '아몽솔류션': '아몽솔루션(주)',
+                '아프로시스': '아프로시스템즈',
+                '아프로': '아프로시스템즈',
+                '아프로시스템': '아프로시스템즈',
+                '알티솔류션': '알티솔루션',
+                '비츠로시스': '비츠로시스(주)',
+                '비츠로시스(주)': '(주)비츠로시스',
+                '하이테콤': '(주)하이테콤',
+                '(주)렉스젠': '렉스젠'
+            },
+            '단속형태': {
+                '과속': '과속제어기',
+                '과속제어기': '과속제어기',
+                '과속 및 신호': '다기능제어기',
+                '다기능제어기': '다기능제어기',
+                '구간단속': '구간제어기',
+                '구간제어기': '구간제어기'
+            },
+            '장비운영상태': {
+                '정상운영': '정상운영',
+                '정상운영모드': '정상운영',
+                '일시정지모드': '정상운영',
+                '시범운영': '시범운영',
+                '시범운영모드': '시범운영',
+                '폐기': '폐기'
+            },
+            '관할경찰서': {
+                '경남고성경찰서': '고성 경찰서'
+            }
+        }
+
+        # 값 매핑 함수 정의
+        def map_values(column, value):
+            mapping = value_mappings.get(column, {})
+            return mapping.get(value, value)
+
+        # 비교를 위한 데이터프레임 복사 (원본 데이터 유지)
+        df_tcs_compare = df_tcs.copy()
+        df_tems_compare = df_tems.copy()
+
+        # 비교할 열에 대해 값 매핑 적용
+        for col in ['장비운영상태', '단속형태', '설치업체']:
+            if col in df_tcs_compare.columns:
+                df_tcs_compare[col] = df_tcs_compare[col].apply(lambda x: map_values(col, x))
+            if col in df_tems_compare.columns:
+                df_tems_compare[col] = df_tems_compare[col].apply(lambda x: map_values(col, x))
+
+        # '폐기' 상태 제거
+        if '장비운영상태' in df_tcs_compare.columns:
+            df_tcs_compare = df_tcs_compare[df_tcs_compare['장비운영상태'] != '폐기']
+        if '장비운영상태' in df_tems_compare.columns:
+            df_tems_compare = df_tems_compare[df_tems_compare['장비운영상태'] != '폐기']
+
+        # 비교할 열 목록
+        compare_columns = ['장비운영상태', '단속형태', '설치지점', '설치업체', '제한속도', '단속속도', '정상운영일', '관할경찰서']
+
+        # 각 데이터프레임에서 실제로 존재하는 비교할 열 찾기
+        tcs_columns_available = [col for col in compare_columns if col in df_tcs_compare.columns]
+        tems_columns_available = [col for col in compare_columns if col in df_tems_compare.columns]
+
+        # 두 데이터프레임에 공통으로 존재하는 열만 비교
+        common_columns = list(set(tcs_columns_available).intersection(set(tems_columns_available)))
+
+        # 비교할 열에 '장비코드' 추가
+        common_columns_with_code = ['장비코드'] + common_columns
+
+        # 필요한 열만 선택
+        df_tcs_compare = df_tcs_compare[common_columns_with_code]
+        df_tems_compare = df_tems_compare[common_columns_with_code]
+
+        # 데이터 비교를 위한 병합
+        df_merged = pd.merge(df_tcs_compare, df_tems_compare, on='장비코드', how='inner',
+                             suffixes=('_TCS', '_TEMS'))
+
+        # 차이가 나는 장비 추출
+        differences = []
+
+        for index, row in df_merged.iterrows():
+            diff = {'장비코드': row['장비코드']}
+            has_difference = False
+            for col in compare_columns:
+                if col in common_columns:
+                    val_tcs = row[f"{col}_TCS"]
+                    val_tems = row[f"{col}_TEMS"]
+                    if pd.isnull(val_tcs) and pd.isnull(val_tems):
+                        diff[col] = val_tcs
+                    elif val_tcs != val_tems:
+                        diff[col] = f"{val_tcs} | {val_tems}"
+                        has_difference = True
+                    else:
+                        diff[col] = val_tcs
+                else:
+                    diff[col] = None  # 해당 열이 존재하지 않을 경우
+            if has_difference:
+                differences.append(diff)
+
+        if differences:
+            st.subheader("🔍 차이가 나는 장비 목록")
+            differences_df = pd.DataFrame(differences)
+            # 표시할 열 순서 지정
+            display_columns = ['장비코드', '장비운영상태', '단속형태', '설치지점', '설치업체',
+                               '제한속도', '단속속도', '정상운영일', '관할경찰서']
+            # differences_df에 존재하는 열만 선택
+            existing_columns = [col for col in display_columns if col in differences_df.columns]
+            differences_df = differences_df[existing_columns]
+            st.dataframe(differences_df)
+        else:
+            st.write("차이가 나는 장비가 없습니다.")
+
+    else:
+        st.info("두 개의 엑셀 파일을 업로드해주세요.")
 
 # 데이터베이스 초기화 버튼
 if st.sidebar.button("전체 DB 삭제"):

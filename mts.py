@@ -264,6 +264,10 @@ with tab1:
                             send_email_alert(recipient_email, subject, body)
                         else:
                             st.error("이메일 주소를 입력해주세요.")
+# 데이터베이스 초기화 버튼
+if st.sidebar.button("전체 DB 삭제"):
+    reset_database()
+    st.warning("전체 데이터베이스가 초기화되었습니다. 수동으로 새로고침 해주세요.")
 
 # 단속장비 정보조회 탭
 with tab2:
@@ -333,7 +337,10 @@ with tab3:
         df_tcs = pd.read_excel(uploaded_tcs)
         df_tems = pd.read_excel(uploaded_tems)
 
-        # 열 이름 매핑
+        # 열 이름에서 줄바꿈 문자와 공백 제거
+        df_tcs.columns = df_tcs.columns.str.replace(r'[\n\r]+', '', regex=True).str.strip()
+
+        # 열 이름 매핑 (특정 열을 새로운 이름으로 매핑)
         tcs_column_mapping = {
             '장비번호': '장비코드',
             '운영상태': '장비운영상태',
@@ -350,10 +357,8 @@ with tab3:
         tems_column_mapping = {
             '제어기 번호': '장비코드',
             '제어기모드': '장비운영상태',
-            '제어기모드 ': '장비운영상태',
             '제어기 유형': '단속형태',
             '설치주소': '설치지점',
-            '설치 주소': '설치지점',
             '경찰서 명칭': '관할경찰서',
             '소형제한속도': '제한속도',
             '소형단속속도': '단속속도',
@@ -365,6 +370,14 @@ with tab3:
         df_tcs.rename(columns=tcs_column_mapping, inplace=True)
         df_tems.rename(columns=tems_column_mapping, inplace=True)
 
+        # TCS 데이터프레임의 정상운영일 열에서 '-'를 '.'로 변경 및 날짜 형식 통일
+        df_tcs['정상운영일'] = df_tcs['정상운영일'].str.replace('.', '-')
+        df_tcs['정상운영일'] = pd.to_datetime(df_tcs['정상운영일'], errors='coerce').dt.strftime('%Y년 %m월 %d일')
+
+        # TEMS 데이터프레임의 정상운영일 열에서 시간 제거 및 날짜 형식 통일
+        df_tems['정상운영일'] = pd.to_datetime(df_tems['정상운영일'], errors='coerce').dt.strftime('%Y년 %m월 %d일')
+
+        
         # 값 매핑 딕셔너리 (비교 시 사용)
         value_mappings = {
             '설치업체': {
@@ -412,7 +425,10 @@ with tab3:
                 '폐기': '폐기'
             },
             '관할경찰서': {
-                '경남고성경찰서': '고성 경찰서'
+                '경남고성경찰서': '고성경찰서',
+                '고성 경찰서': '고성경찰서',
+                '고성경찰서': '고성경찰서',
+                '6지구대': '６지구대',
             }
         }
 
@@ -426,7 +442,7 @@ with tab3:
         df_tems_compare = df_tems.copy()
 
         # 비교할 열에 대해 값 매핑 적용
-        for col in ['장비운영상태', '단속형태', '설치업체']:
+        for col in ['장비운영상태', '단속형태', '설치지점', '설치업체', '제한속도', '단속속도', '정상운영일', '관할경찰서']:
             if col in df_tcs_compare.columns:
                 df_tcs_compare[col] = df_tcs_compare[col].apply(lambda x: map_values(col, x))
             if col in df_tems_compare.columns:
@@ -455,9 +471,11 @@ with tab3:
         df_tcs_compare = df_tcs_compare[common_columns_with_code]
         df_tems_compare = df_tems_compare[common_columns_with_code]
 
+        # 두 데이터프레임을 outer join으로 병합
+        df_merged = pd.merge(df_tcs_compare, df_tems_compare, on='장비코드', how='outer', suffixes=('_TCS', '_TEMS'))
+        
         # 데이터 비교를 위한 병합
-        df_merged = pd.merge(df_tcs_compare, df_tems_compare, on='장비코드', how='inner',
-                             suffixes=('_TCS', '_TEMS'))
+        #df_merged = pd.merge(df_tcs_compare, df_tems_compare, on='장비코드', how='inner', suffixes=('_TCS', '_TEMS'))
 
         # 차이가 나는 장비 추출
         differences = []
@@ -497,7 +515,62 @@ with tab3:
     else:
         st.info("두 개의 엑셀 파일을 업로드해주세요.")
 
-# 데이터베이스 초기화 버튼
-if st.sidebar.button("전체 DB 삭제"):
-    reset_database()
-    st.warning("전체 데이터베이스가 초기화되었습니다. 수동으로 새로고침 해주세요.")
+# Streamlit의 선택 상자를 사용해 필터링 조건 선택 (기본 선택은 '장비운영상태')
+filter_option = st.selectbox(
+    "비교할 항목을 선택하세요:",
+    ['장비운영상태', '단속형태', '설치지점', '관할경찰서', '설치업체', '정상운영일', '제한속도', '단속속도'],
+    index=0  # 기본 선택값으로 '장비운영상태' 설정
+)
+
+# 선택된 항목에 대해 서로 다른 데이터 필터링 및 출력
+if filter_option == '장비운영상태':
+    different_operating_status = df_merged[df_merged['장비운영상태_TCS'] != df_merged['장비운영상태_TEMS']]
+    st.write("장비운영상태가 서로 다른 항목들:")
+    st.write(different_operating_status[['장비코드', '장비운영상태_TCS', '장비운영상태_TEMS']])
+elif filter_option == '단속형태':
+    different_violation_type = df_merged[df_merged['단속형태_TCS'] != df_merged['단속형태_TEMS']]
+    st.write("단속형태가 서로 다른 항목들:")
+    st.write(different_violation_type[['장비코드', '단속형태_TCS', '단속형태_TEMS']])
+elif filter_option == '설치지점':
+    different_install_location = df_merged[df_merged['설치지점_TCS'] != df_merged['설치지점_TEMS']]
+    st.write("설치지점이 서로 다른 항목들:")
+    st.write(different_install_location[['장비코드', '설치지점_TCS', '설치지점_TEMS']])
+elif filter_option == '관할경찰서':
+    different_police_station = df_merged[df_merged['관할경찰서_TCS'] != df_merged['관할경찰서_TEMS']]
+    st.write("관할경찰서가 서로 다른 항목들:")
+    st.write(different_police_station[['장비코드', '관할경찰서_TCS', '관할경찰서_TEMS']])
+elif filter_option == '설치업체':
+    different_installation_company = df_merged[df_merged['설치업체_TCS'] != df_merged['설치업체_TEMS']]
+    st.write("설치업체가 서로 다른 항목들:")
+    st.write(different_installation_company[['장비코드', '설치업체_TCS', '설치업체_TEMS']])
+elif filter_option == '정상운영일':
+    different_normal_operating_date = df_merged[df_merged['정상운영일_TCS'] != df_merged['정상운영일_TEMS']]
+    st.write("정상운영일이 서로 다른 항목들:")
+    st.write(different_normal_operating_date[['장비코드', '정상운영일_TCS', '정상운영일_TEMS']])
+elif filter_option == '제한속도':
+    different_speed_limit = df_merged[df_merged['제한속도_TCS'] != df_merged['제한속도_TEMS']]
+    st.write("제한속도가 서로 다른 항목들:")
+    st.write(different_speed_limit[['장비코드', '제한속도_TCS', '제한속도_TEMS']])
+elif filter_option == '단속속도':
+    different_control_speed = df_merged[df_merged['단속속도_TCS'] != df_merged['단속속도_TEMS']]
+    st.write("단속속도가 서로 다른 항목들:")
+    st.write(different_control_speed[['장비코드', '단속속도_TCS', '단속속도_TEMS']])
+
+# Streamlit 화면에 매핑 후 데이터프레임 출력
+#st.subheader("TCS 데이터 매핑 후 결과")
+#st.write(df_tcs_compare)
+#st.subheader("TEMS 데이터 매핑 후 결과")
+#st.write(df_tems_compare)
+
+
+# 열 이름 매핑 후 데이터프레임 확인
+#st.write("TCS 열 이름 매핑 후 데이터프레임:")
+#st.write(df_tcs.head())
+#st.write("TEMS 열 이름 매핑 후 데이터프레임:")
+#st.write(df_tems.head())
+
+# 열 이름 매핑 후 열 목록 확인
+#st.write("TCS 열 이름 매핑 후 열 목록:")
+#st.write(df_tcs.columns)
+#st.write("TEMS 열 이름 매핑 후 열 목록:")
+#st.write(df_tems.columns)

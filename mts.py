@@ -477,6 +477,77 @@ with tab3:
         # 데이터 비교를 위한 병합
         #df_merged = pd.merge(df_tcs_compare, df_tems_compare, on='장비코드', how='inner', suffixes=('_TCS', '_TEMS'))
 
+# TCS와 TEMS의 장비운영상태 및 단속형태에 따른 장비 대수 계산
+def get_equipment_summary(df, equipment_type_column='단속형태', operation_status_column='장비운영상태'):
+    summary = {}
+    unique_statuses = df[operation_status_column].unique()
+    for status in unique_statuses:
+        # 장비운영상태별로 필터링
+        df_status = df[df[operation_status_column] == status]
+        status_summary = {
+            '과속장비': df_status[df_status[equipment_type_column] == '과속제어기'].shape[0],
+            '다기능장비': df_status[df_status[equipment_type_column] == '다기능제어기'].shape[0],
+            '구간장비': df_status[df_status[equipment_type_column] == '구간제어기'].shape[0]
+        }
+        summary[status] = status_summary
+    return summary
+
+# TCS 및 TEMS 데이터의 장비운영상태 및 단속형태별 요약 계산
+tcs_summary = get_equipment_summary(df_tcs_compare)
+tems_summary = get_equipment_summary(df_tems_compare)
+
+# Streamlit UI에 요약 표시
+st.subheader("TCS 및 TEMS 장비 대수 요약")
+
+# 요약 내용을 표 형태로 표시
+st.write("### TCS 장비 요약")
+for status, counts in tcs_summary.items():
+    st.write(f"**{status} 장비**")
+    for equipment_type, count in counts.items():
+        st.write(f"- {equipment_type}: {count}대")
+
+st.write("### TEMS 장비 요약")
+for status, counts in tems_summary.items():
+    st.write(f"**{status} 장비**")
+    for equipment_type, count in counts.items():
+        st.write(f"- {equipment_type}: {count}대")
+
+# 장비운영상태별 및 단속형태별 요약을 표로 보기 좋게 정리
+summary_df = pd.DataFrame({
+    '운영상태': [],
+    'TCS - 과속장비': [],
+    'TCS - 다기능장비': [],
+    'TCS - 구간장비': [],
+    'TEMS - 과속장비': [],
+    'TEMS - 다기능장비': [],
+    'TEMS - 구간장비': []
+})
+
+# 각 장비운영상태에 따른 장비 대수 추가
+all_statuses = set(tcs_summary.keys()).union(set(tems_summary.keys()))
+for status in all_statuses:
+    tcs_counts = tcs_summary.get(status, {'과속장비': 0, '다기능장비': 0, '구간장비': 0})
+    tems_counts = tems_summary.get(status, {'과속장비': 0, '다기능장비': 0, '구간장비': 0})
+    
+    summary_df = summary_df.append({
+        '운영상태': status,
+        'TCS - 과속장비': tcs_counts['과속장비'],
+        'TCS - 다기능장비': tcs_counts['다기능장비'],
+        'TCS - 구간장비': tcs_counts['구간장비'],
+        'TEMS - 과속장비': tems_counts['과속장비'],
+        'TEMS - 다기능장비': tems_counts['다기능장비'],
+        'TEMS - 구간장비': tems_counts['구간장비']
+    }, ignore_index=True)
+
+# 표 형태로 요약 결과 출력
+st.subheader("운영상태 및 단속형태별 TCS 및 TEMS 장비 대수 요약")
+st.dataframe(summary_df)
+
+
+
+
+
+        
         # 차이가 나는 장비 추출
         differences = []
 

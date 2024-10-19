@@ -589,48 +589,48 @@ with tab3:
         else:
             st.write("차이가 나는 장비가 없습니다.")
 
-# Streamlit의 선택 상자를 사용해 필터링 조건 선택 (기본 선택은 '장비운영상태')
-filter_option = st.selectbox(
-    "비교할 항목을 선택하세요:",
-    ['장비운영상태', '단속형태', '설치지점', '관할경찰서', '설치업체', '정상운영일', '제한속도', '단속속도'],
-    index=0  # 기본 선택값으로 '장비운영상태' 설정
-)
+        # Streamlit의 선택 상자를 사용해 필터링 조건 선택 (기본 선택은 '장비운영상태')
+        filter_option = st.selectbox(
+            "비교할 항목을 선택하세요:",
+            ['장비운영상태', '단속형태', '설치지점', '관할경찰서', '설치업체', '정상운영일', '제한속도', '단속속도'],
+            index=0  # 기본 선택값으로 '장비운영상태' 설정
+        )
 
-# 선택된 항목에 대해 서로 다른 데이터 필터링 및 출력
-if filter_option == '장비운영상태':
-    different_operating_status = df_merged[df_merged['장비운영상태_TCS'] != df_merged['장비운영상태_TEMS']]
-    st.write("장비운영상태가 서로 다른 항목들:")
-    st.write(different_operating_status[['장비코드', '장비운영상태_TCS', '장비운영상태_TEMS']])
-elif filter_option == '단속형태':
-    different_violation_type = df_merged[df_merged['단속형태_TCS'] != df_merged['단속형태_TEMS']]
-    st.write("단속형태가 서로 다른 항목들:")
-    st.write(different_violation_type[['장비코드', '단속형태_TCS', '단속형태_TEMS']])
-elif filter_option == '설치지점':
-    different_install_location = df_merged[df_merged['설치지점_TCS'] != df_merged['설치지점_TEMS']]
-    st.write("설치지점이 서로 다른 항목들:")
-    st.write(different_install_location[['장비코드', '설치지점_TCS', '설치지점_TEMS']])
-elif filter_option == '관할경찰서':
-    different_police_station = df_merged[df_merged['관할경찰서_TCS'] != df_merged['관할경찰서_TEMS']]
-    st.write("관할경찰서가 서로 다른 항목들:")
-    st.write(different_police_station[['장비코드', '관할경찰서_TCS', '관할경찰서_TEMS']])
-elif filter_option == '설치업체':
-    different_installation_company = df_merged[df_merged['설치업체_TCS'] != df_merged['설치업체_TEMS']]
-    st.write("설치업체가 서로 다른 항목들:")
-    st.write(different_installation_company[['장비코드', '설치업체_TCS', '설치업체_TEMS']])
-elif filter_option == '정상운영일':
-    different_normal_operating_date = df_merged[df_merged['정상운영일_TCS'] != df_merged['정상운영일_TEMS']]
-    st.write("정상운영일이 서로 다른 항목들:")
-    st.write(different_normal_operating_date[['장비코드', '정상운영일_TCS', '정상운영일_TEMS']])
-elif filter_option == '제한속도':
-    different_speed_limit = df_merged[df_merged['제한속도_TCS'] != df_merged['제한속도_TEMS']]
-    st.write("제한속도가 서로 다른 항목들:")
-    st.write(different_speed_limit[['장비코드', '제한속도_TCS', '제한속도_TEMS']])
-elif filter_option == '단속속도':
-    different_control_speed = df_merged[df_merged['단속속도_TCS'] != df_merged['단속속도_TEMS']]
-    st.write("단속속도가 서로 다른 항목들:")
-    st.write(different_control_speed[['장비코드', '단속속도_TCS', '단속속도_TEMS']])
+        # 선택된 항목에 대해 서로 다른 데이터 필터링 및 출력
+        if filter_option == '장비운영상태':
+            different_operating_status = df_merged[df_merged['장비운영상태_TCS'] != df_merged['장비운영상태_TEMS']]
+            st.write("장비운영상태가 서로 다른 항목들:")
+            st.write(different_operating_status[['장비코드', '장비운영상태_TCS', '장비운영상태_TEMS']])
+        elif filter_option == '단속형태':
+            different_violation_type = df_merged[df_merged['단속형태_TCS'] != df_merged['단속형태_TEMS']]
+            st.write("단속형태가 서로 다른 항목들:")
+            st.write(different_violation_type[['장비코드', '단속형태_TCS', '단속형태_TEMS']])
+        elif filter_option == '설치지점':
+            different_install_location = df_merged[df_merged['설치지점_TCS'] != df_merged['설치지점_TEMS']]
+            st.write("설치지점이 서로 다른 항목들:")
+            st.write(different_install_location[['장비코드', '설치지점_TCS', '설치지점_TEMS']])
+        elif filter_option == '관할경찰서':
+            different_police_station = df_merged[df_merged['관할경찰서_TCS'] != df_merged['관할경찰서_TEMS']]
+            st.write("관할경찰서가 서로 다른 항목들:")
+            st.write(different_police_station[['장비코드', '관할경찰서_TCS', '관할경찰서_TEMS']])
+        elif filter_option == '설치업체':
+            different_installation_company = df_merged[df_merged['설치업체_TCS'] != df_merged['설치업체_TEMS']]
+            st.write("설치업체가 서로 다른 항목들:")
+            st.write(different_installation_company[['장비코드', '설치업체_TCS', '설치업체_TEMS']])
+        elif filter_option == '정상운영일':
+            different_normal_operating_date = df_merged[df_merged['정상운영일_TCS'] != df_merged['정상운영일_TEMS']]
+            st.write("정상운영일이 서로 다른 항목들:")
+            st.write(different_normal_operating_date[['장비코드', '정상운영일_TCS', '정상운영일_TEMS']])
+        elif filter_option == '제한속도':
+            different_speed_limit = df_merged[df_merged['제한속도_TCS'] != df_merged['제한속도_TEMS']]
+            st.write("제한속도가 서로 다른 항목들:")
+            st.write(different_speed_limit[['장비코드', '제한속도_TCS', '제한속도_TEMS']])
+        elif filter_option == '단속속도':
+            different_control_speed = df_merged[df_merged['단속속도_TCS'] != df_merged['단속속도_TEMS']]
+            st.write("단속속도가 서로 다른 항목들:")
+            st.write(different_control_speed[['장비코드', '단속속도_TCS', '단속속도_TEMS']])
 
-else:
+    else:
         st.warning("두 개의 엑셀 파일을 모두 업로드해주세요.")
 
 # Streamlit 화면에 매핑 후 데이터프레임 출력

@@ -502,20 +502,20 @@ with tab3:
         tems_summary = get_equipment_summary(df_tems_compare)
 
         # Streamlit UI에 요약 표시
-        st.subheader("TCS 및 TEMS 장비 대수 요약")
+        #st.subheader("TCS 및 TEMS 장비 대수 요약")
 
         # 요약 내용을 표 형태로 표시
-        st.write("### TCS 장비 요약")
-        for status, counts in tcs_summary.items():
-            st.write(f"**{status} 장비**")
-            for equipment_type, count in counts.items():
-                st.write(f"- {equipment_type}: {count}대")
+        #st.write("### TCS 장비 요약")
+        #for status, counts in tcs_summary.items():
+        #    st.write(f"**{status} 장비**")
+        #    for equipment_type, count in counts.items():
+        #        st.write(f"- {equipment_type}: {count}대")
 
-        st.write("### TEMS 장비 요약")
-        for status, counts in tems_summary.items():
-            st.write(f"**{status} 장비**")
-            for equipment_type, count in counts.items():
-                st.write(f"- {equipment_type}: {count}대")
+        #st.write("### TEMS 장비 요약")
+        #for status, counts in tems_summary.items():
+        #    st.write(f"**{status} 장비**")
+        #    for equipment_type, count in counts.items():
+        #        st.write(f"- {equipment_type}: {count}대")
 
         # 장비운영상태별 및 단속형태별 요약을 표로 보기 좋게 정리
         summary_df = pd.DataFrame({

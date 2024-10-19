@@ -577,7 +577,7 @@ with tab3:
                 differences.append(diff)
 
         if differences:
-            st.subheader("🔍 차이가 나는 장비 목록")
+            st.subheader(f"🔍 차이가 나는 장비 목록 : 총 {len(differences)}대")
             differences_df = pd.DataFrame(differences)
             # 표시할 열 순서 지정
             display_columns = ['장비코드', '장비운영상태', '단속형태', '설치지점', '설치업체',
@@ -599,36 +599,37 @@ with tab3:
         # 선택된 항목에 대해 서로 다른 데이터 필터링 및 출력
         if filter_option == '장비운영상태':
             different_operating_status = df_merged[df_merged['장비운영상태_TCS'] != df_merged['장비운영상태_TEMS']]
-            st.write("장비운영상태가 서로 다른 항목들:")
+            st.subheader(f"장비운영상태가 서로 다른 항목들 : 총 {len(different_operating_status)}대")
             st.write(different_operating_status[['장비코드', '장비운영상태_TCS', '장비운영상태_TEMS']])
         elif filter_option == '단속형태':
             different_violation_type = df_merged[df_merged['단속형태_TCS'] != df_merged['단속형태_TEMS']]
-            st.write("단속형태가 서로 다른 항목들:")
+            st.subheader(f"단속형태가 서로 다른 항목들 : 총 {len(different_violation_type)}대")
             st.write(different_violation_type[['장비코드', '단속형태_TCS', '단속형태_TEMS']])
         elif filter_option == '설치지점':
             different_install_location = df_merged[df_merged['설치지점_TCS'] != df_merged['설치지점_TEMS']]
-            st.write("설치지점이 서로 다른 항목들:")
+            st.subheader(f"설치지점이 서로 다른 항목들 : 총 {len(different_install_location)}대")
             st.write(different_install_location[['장비코드', '설치지점_TCS', '설치지점_TEMS']])
         elif filter_option == '관할경찰서':
             different_police_station = df_merged[df_merged['관할경찰서_TCS'] != df_merged['관할경찰서_TEMS']]
-            st.write("관할경찰서가 서로 다른 항목들:")
+            st.subheader(f"관할경찰서가 서로 다른 항목들 : 총 {len(different_police_station)}대")
             st.write(different_police_station[['장비코드', '관할경찰서_TCS', '관할경찰서_TEMS']])
         elif filter_option == '설치업체':
             different_installation_company = df_merged[df_merged['설치업체_TCS'] != df_merged['설치업체_TEMS']]
-            st.write("설치업체가 서로 다른 항목들:")
+            st.subheader(f"설치업체가 서로 다른 항목들 : 총 {len(different_installation_company)}대")
             st.write(different_installation_company[['장비코드', '설치업체_TCS', '설치업체_TEMS']])
         elif filter_option == '정상운영일':
             different_normal_operating_date = df_merged[df_merged['정상운영일_TCS'] != df_merged['정상운영일_TEMS']]
-            st.write("정상운영일이 서로 다른 항목들:")
+            st.subheader(f"정상운영일이 서로 다른 항목들 : 총 {len(different_normal_operating_date)}대")
             st.write(different_normal_operating_date[['장비코드', '정상운영일_TCS', '정상운영일_TEMS']])
         elif filter_option == '제한속도':
             different_speed_limit = df_merged[df_merged['제한속도_TCS'] != df_merged['제한속도_TEMS']]
-            st.write("제한속도가 서로 다른 항목들:")
+            st.subheader(f"제한속도가 서로 다른 항목들 : 총 {len(different_speed_limit)}대")
             st.write(different_speed_limit[['장비코드', '제한속도_TCS', '제한속도_TEMS']])
         elif filter_option == '단속속도':
             different_control_speed = df_merged[df_merged['단속속도_TCS'] != df_merged['단속속도_TEMS']]
-            st.write("단속속도가 서로 다른 항목들:")
+            st.subheader(f"단속속도가 서로 다른 항목들 : 총 {len(different_control_speed)}대")
             st.write(different_control_speed[['장비코드', '단속속도_TCS', '단속속도_TEMS']])
+
 
     else:
         st.warning("두 개의 엑셀 파일을 모두 업로드해주세요.")
